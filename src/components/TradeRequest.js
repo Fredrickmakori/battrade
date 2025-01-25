@@ -9,7 +9,8 @@ import {
   Button,
   Alert,
 } from "react-bootstrap";
-import { db, auth, storage } from "../services/firebase";
+import { db, auth, storage, functions } from "../services/firebase";
+import { httpsCallable } from "firebase/functions";
 
 const TradeRequest = () => {
   const { itemId } = useParams();
@@ -30,6 +31,7 @@ const TradeRequest = () => {
           setError("Item not found");
         }
       } catch (error) {
+        console.error("Error fetching item:", error);
         setError("Error fetching item");
       }
     };
@@ -42,17 +44,16 @@ const TradeRequest = () => {
     setSuccess(null);
 
     try {
-      // Create a trade request document in Firestore
-      await db.collection("tradeRequests").add({
-        itemId: itemId,
-        offeredItem: offer,
-        requester: auth.currentUser.uid, // Get current user ID
-        timestamp: storage.FieldValue.serverTimestamp(),
-      });
+      const createTradeRequestFn = httpsCallable(
+        functions,
+        "createTradeRequest"
+      );
+
+      await createTradeRequestFn({ itemId, offeredItem: offer });
       setSuccess("Trade request submitted successfully!");
-      // Optionally, redirect to a confirmation page or update the UI
-      navigate("/items"); // Or navigate to a confirmation page
+      navigate("/items");
     } catch (error) {
+      console.error("Error submitting trade request:", error);
       setError("Error submitting trade request: " + error.message);
     }
   };

@@ -20,21 +20,25 @@ import {
   signInWithPhoneNumber,
   RecaptchaVerifier,
 } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../services/firebase";
 
 const UserLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
+  const [phoneNumber, setPhoneNumber] = useState(""); // Added state for phone number
   const { setUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.pathname || "/profile";
+  const from = location.state?.from?.pathname || "/"; // Fixed path handling
 
   const handleGoogleSignIn = async () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       setUser(user);
+      await callCreateUserDetails(user); // Call after successful sign-in
       navigate(from, { replace: true });
     } catch (error) {
       setError(error.message);
@@ -45,38 +49,32 @@ const UserLogin = () => {
     const appVerifier = new RecaptchaVerifier(
       "recaptcha-container",
       {
-        invisible: true,
-        size: "400x200",
-        badge: "inline",
+        size: "invisible",
         callback: (response) => {
-          console.log(response);
+          console.log("reCAPTCHA  allow signInWithPhoneNumber.");
+        },
+        "expired-callback": () => {
+          console.log("Response expired. Ask user to solve reCAPTCHA again.");
         },
       },
       auth
     );
-
-    //Get the verification code from user
-    let phoneNumber = prompt("Enter code sent to your phone number");
-    if (!phoneNumber) {
-      // Check if the user canceled or entered nothing
-      setError("Phone number is required.");
-      return;
-    }
     try {
       const confirmation = await signInWithPhoneNumber(
         auth,
         phoneNumber,
         appVerifier
       );
-      let code = prompt("Enter the verification code sent to your phone:");
-      if (!code) {
-        setError("Verification code is required.");
-        return;
+      const code = prompt("Enter the verification code:");
+      if (code) {
+        await confirmation.confirm(code);
+        const user = auth.currentUser;
+        setUser(user);
+        await callCreateUserDetails(user); // Call after successful sign-in
+        navigate(from, { replace: true });
+      } else {
+        setError("Verification code not provided");
       }
-      await confirmation.confirm(code);
-      const user = auth.currentUser;
-      setUser(user);
-      navigate(from, { replace: true });
     } catch (error) {
       setError(error.message);
     }
@@ -84,15 +82,35 @@ const UserLogin = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null); // Clear any previous errors
-
+    setError(null);
     try {
-      await signInWithEmailAndPassword(email, password);
-      const user = auth.currentUser;
-      setUser(user); // Update the AuthContext
-      navigate(from, { replace: true }); // Navigate to user profile
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
+      setUser(user);
+      await callCreateUserDetails(user); //Call after successful sign-in
+      navigate(from, { replace: true });
     } catch (error) {
-      setError(error.message); // Set error message from Firebase
+      setError(error.message);
+    }
+  };
+
+  const callCreateUserDetails = async (user) => {
+    try {
+      const createUserDetails = httpsCallable(functions, "createUserDetails");
+      await createUserDetails({
+        uid: user.uid,
+        firstName: user.displayName?.split(" ")[0] || "",
+        lastName: user.displayName?.split(" ")[1] || "",
+        email: user.email || "",
+        phoneNumber: user.phoneNumber || "",
+      });
+    } catch (error) {
+      console.error("Error creating user details:", error);
+      setError("Failed to update user profile. Please try again later.");
     }
   };
 
@@ -102,8 +120,7 @@ const UserLogin = () => {
         <Col md={6}>
           <Card className="p-4">
             <Card.Title>Login</Card.Title>
-            {error && <Alert variant="danger">{error}</Alert>}{" "}
-            {/* Display error message */}
+            {error && <Alert variant="danger">{error}</Alert>}
             <Form onSubmit={handleSubmit}>
               <Form.Group controlId="formBasicEmail" className="mb-3">
                 <Form.Label>Email address</Form.Label>
@@ -140,15 +157,13 @@ const UserLogin = () => {
                   Login
                 </Button>
                 <Button variant="outline-primary" onClick={handleGoogleSignIn}>
-                  <i className="bi bi-google"></i>
-                  Sign in with Google
+                  <i className="bi bi-google"></i> Sign in with Google
                 </Button>
                 <Button
                   variant="outline-primary"
-                  onClick={() => handlePhoneSignIn("+15551234567")}
+                  onClick={() => handlePhoneSignIn(phoneNumber)}
                 >
-                  <i className="bi bi-phone"></i>
-                  Sign in with Phone
+                  <i className="bi bi-phone"></i> Sign in with Phone
                 </Button>
               </ButtonGroup>
               <div id="recaptcha-container"></div>

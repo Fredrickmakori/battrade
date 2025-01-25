@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, PhoneAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 // ... rest of your firebase.js
 
 //In your components, import only the necessary firebase services
@@ -24,5 +25,5 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 const phoneAuthProvider = new PhoneAuthProvider(auth);
-
-export { auth, db, storage, phoneAuthProvider, googleProvider };
+const functions = getFunctions(app);
+export { auth, db, storage, phoneAuthProvider, googleProvider, functions };

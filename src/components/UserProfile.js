@@ -14,6 +14,7 @@ import {
   Alert,
 } from "react-bootstrap";
 import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 
 const UserProfile = () => {
   const { user } = useContext(AuthContext);
@@ -27,6 +28,50 @@ const UserProfile = () => {
   const [idNumber, setIdNumber] = useState("");
   const [location, setLocation] = useState("");
   const [email, setEmail] = useState("");
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user) return;
+      try {
+        const getUserProfile = httpsCallable(db, "getUserProfile");
+        const result = await getUserProfile({ uid: user.uid });
+        setUserData(result.data);
+        setFirstName(result.data.firstName);
+        setLastName(result.data.lastName);
+        setMobileNumber(result.data.mobileNumber);
+        setIdNumber(result.data.idNumber);
+        setLocation(result.data.location);
+        setEmail(result.data.email);
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+        setError("Failed to fetch user profile.");
+      }
+    };
+    fetchUserProfile();
+  }, [user]);
+
+  const handleSave = async () => {
+    setEditing(true);
+    try {
+      const updateUserProfileFn = httpsCallable(db, "updateUserProfile");
+      await updateUserProfileFn({
+        firstName,
+        lastName,
+        mobileNumber,
+        idNumber,
+        location,
+        email,
+      });
+      const getUserProfileFn = httpsCallable(db, "getUserProfile");
+      const result = await getUserProfileFn({ uid: user.uid });
+      setUserData(result.data);
+      setEditing(false);
+      setError(null);
+    } catch (error) {
+      setError("Failed to save changes.");
+      console.error("Error saving user data:", error);
+    }
+  };
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -80,41 +125,6 @@ const UserProfile = () => {
       console.error("Logout failed:", error);
     }
   };
-
-  const handleSave = async () => {
-    try {
-      if (!user) {
-        throw new Error("User not authenticated");
-      }
-      const userDocRef = doc(db, "user-details", user.uid);
-      await updateDoc(userDocRef, {
-        firstName,
-        lastName,
-        mobileNumber,
-        idNumber,
-        location,
-        email,
-      });
-      setEditing(false);
-      setError(null);
-      // Fetch updated data to reflect changes
-      const docSnap = await getDoc(userDocRef);
-      if (docSnap.exists()) {
-        setUserData(docSnap.data());
-      }
-    } catch (error) {
-      setError("Failed to save changes.");
-      console.error("Error saving user data:", error);
-    }
-  };
-
-  if (!user) {
-    return <div>Loading...</div>;
-  }
-
-  if (!userData) {
-    return <div>Loading user data...</div>;
-  }
 
   return (
     <>

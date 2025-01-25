@@ -3,6 +3,8 @@ import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { Alert, Container, Row, Col, Card, Button } from "react-bootstrap";
 import { Link } from "react-router-dom";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../services/firebase";
 
 const ItemList = () => {
   const [items, setItems] = useState([]);
@@ -14,6 +16,21 @@ const ItemList = () => {
     setError(null); // Clear previous errors
 
     const q = query(collection(db, "items"), orderBy("timestamp", "desc")); // Order by timestamp
+
+    const fetchItems = async () => {
+      setLoading(true); //Set loading to true before fetching
+      try {
+        const getAllItemsFn = httpsCallable(functions, "getAllItems");
+        const result = await getAllItemsFn();
+        setItems(result.data);
+      } catch (error) {
+        setError("Error fetching items: " + error.message);
+      } finally {
+        setLoading(false); //Set loading to false after fetching, regardless of success or failure.
+      }
+    };
+
+    fetchItems(); //Call the function to fetch the items
 
     const unsubscribe = onSnapshot(
       q,

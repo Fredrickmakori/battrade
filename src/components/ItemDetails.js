@@ -1,14 +1,35 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Container, Row, Col, Card, Image, Alert } from "react-bootstrap";
-import { db } from "../services/firebase"; // Import your Firebase service
+import { db, functions } from "../services/firebase";
+import { httpsCallable } from "firebase/functions";
 
 const ItemDetails = () => {
   const { itemId } = useParams();
   const [item, setItem] = useState(null);
   const [error, setError] = useState(null);
 
+  // ... existing imports and state
+
   useEffect(() => {
+    const fetchItemDetails = async () => {
+      try {
+        const getItemByIdFn = httpsCallable(functions, "getItemById");
+        const result = await getItemByIdFn({ itemId }); // Pass itemId as data
+        setItem(result.data);
+      } catch (error) {
+        // ... error handling
+        console.error(error);
+      }
+    };
+
+    fetchItemDetails();
+  }, []);
+  useEffect(() => {
+    // ItemDetails.js
+    // ... existing imports and state
+
+    // ... rest of component
     const fetchItem = async () => {
       try {
         const docRef = db.collection("items").doc(itemId);
@@ -25,7 +46,7 @@ const ItemDetails = () => {
     };
 
     fetchItem();
-  }, [itemId]);
+  }, []);
 
   if (error) {
     return (

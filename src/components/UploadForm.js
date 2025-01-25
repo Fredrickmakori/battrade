@@ -9,6 +9,9 @@ import {
   getDownloadURL,
 } from "firebase/storage"; // Import storage functions
 import { addDoc, collection } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../services/firebase";
+
 const UploadForm = () => {
   // ... (Your existing state variables: item, images, error, uploading) ...
   const [images, setImages] = useState([]);
@@ -71,7 +74,9 @@ const UploadForm = () => {
       );
 
       const newItem = { ...item, images: imageUrls }; // Add image URLs to item data
-
+      const createdItemFn = httpsCallable(functions, "createItem");
+      await createdItemFn(newItem);
+      //
       await addDoc(collection(db, "items"), newItem);
       setUploading(false);
       navigate("/items");

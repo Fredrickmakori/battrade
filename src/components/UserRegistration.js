@@ -1,4 +1,3 @@
-// UserRegistration.js
 import React, { useState, useContext } from "react";
 import {
   Card,
@@ -9,18 +8,23 @@ import {
   Form,
   Button,
 } from "react-bootstrap";
-import {
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  signInWithPhoneNumber,
-  RecaptchaVerifier,
-  GoogleAuthProvider,
-} from "firebase/auth";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { collection, doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../services/firebase";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../services/firebase";
+import PlacesAutocomplete, {
+  geocodeByAddress,
+  getLatLng,
+} from "react-google-places-autocomplete";
+import {
+  signInWithPopup,
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+} from "firebase/auth";
 const UserRegistration = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -30,6 +34,7 @@ const UserRegistration = () => {
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState(null);
+  const [locationDetails, setLocationDetails] = useState({});
 
   const { setUser } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -103,6 +108,16 @@ const UserRegistration = () => {
         email,
         paddedPin
       );
+      const createUser = httpsCallable(functions, "createUser");
+      await createUser({
+        firstName,
+        lastName,
+        mobileNumber,
+        idNumber,
+        location,
+        email,
+        locationDetails,
+      });
       const user = userCredential.user;
       const colRef = collection(db, "user-details");
       await setDoc(doc(colRef, user.uid), {
@@ -112,12 +127,32 @@ const UserRegistration = () => {
         idNumber,
         location,
         email,
+        locationDetails,
       });
       setUser(user);
       navigate("/profile");
     } catch (error) {
       setError(error.message);
     }
+  };
+
+  const handleSelect = async (value) => {
+    setLocation(value.label);
+    const results = await geocodeByAddress(value.label);
+    const latLng = await getLatLng(results[0]);
+    setLocationDetails({
+      ...value,
+      latLng,
+      country: results[0].address_components.find((component) =>
+        component.types.includes("country")
+      )?.long_name,
+      state: results[0].address_components.find((component) =>
+        component.types.includes("administrative_area_level_1")
+      )?.long_name,
+      city: results[0].address_components.find((component) =>
+        component.types.includes("locality")
+      )?.long_name,
+    });
   };
 
   return (
@@ -167,12 +202,50 @@ const UserRegistration = () => {
                 </Form.Group>
                 <Form.Group>
                   <Form.Label>Location</Form.Label>
-                  <Form.Control
-                    type="text"
+                  <PlacesAutocomplete
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    required
-                  />
+                    onChange={setLocation}
+                    onSelect={handleSelect}
+                    apiKey="YOUR_GOOGLE_MAPS_API_KEY"
+                  >
+                    {({
+                      getInputProps,
+                      suggestions,
+                      getSuggestionItemProps,
+                      loading,
+                    }) => (
+                      <div>
+                        <input
+                          {...getInputProps({
+                            placeholder: "Enter your location",
+                          })}
+                        />
+                        {loading ? (
+                          <div>Loading...</div>
+                        ) : (
+                          <div>
+                            {suggestions.map((suggestion) => {
+                              const style = {
+                                backgroundColor: suggestion.isHighlighted
+                                  ? "#eee"
+                                  : "#fff",
+                              };
+                              return (
+                                <div
+                                  {...getSuggestionItemProps(suggestion, {
+                                    style,
+                                  })}
+                                  key={suggestion.placeId}
+                                >
+                                  {suggestion.description}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </PlacesAutocomplete>
                 </Form.Group>
                 <Form.Group>
                   <Form.Label>Email</Form.Label>
