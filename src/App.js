@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext"; // Assuming you use a context for auth
 import { auth } from "./services/firebase";
-
+//Import the ProtectedRoute component
 // Import your components
+
 import ItemList from "./components/ItemList";
 import ItemDetails from "./components/ItemDetails";
 import UploadForm from "./components/UploadForm";
@@ -13,13 +14,17 @@ import TradeRequest from "./components/TradeRequest";
 import NotFound from "./components/NotFound"; // Handle not found routes
 import HomePage from "./components/home";
 import UserRegistration from "./components/UserRegistration";
+import ProtectedRoute from "./components/ProtectedRoute"; // Correct import
+import AdminDashboard from "./components/AdminDashboard"; // Correct import
+import DefaultItems from "./components/DefaultItems"; // Correct import
+
 /**
  * The App component serves as the main entry point of the application, managing
  * user authentication state and defining the routing structure using React Router.
  * It utilizes Firebase Authentication to track the logged-in user and provides
  * the AuthContext to share user data across components. The component renders
  * different routes, including login, item browsing, item details, item upload,
- * user profile, trade requests, and a 404 Not Found page for undefined routes.
+ * user profile and a 404 Not Found page for undefined routes.
  */
 
 function App() {
@@ -44,16 +49,28 @@ function App() {
           <Routes>
             {" "}
             {/* Use Routes for defining routes */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute
+                  allowedRole="admin"
+                  element={<AdminDashboard />}
+                />
+              }
+            />
             <Route path="/" element={<HomePage />} />
+            <Route path="/defaultItems" element={<DefaultItems />} />
             <Route path="/login" element={<UserLogin />} />
             <Route path="/register" element={<UserRegistration />} />
-            <Route path="/ItemList" element={<ItemList />} />
+            <Route path="/itemlist" element={<ItemList />} />
             <Route path="/items/:itemId" element={<ItemDetails />} />
             <Route path="/upload" element={<UploadForm />} />
             <Route
               path="/profile"
               element={user ? <UserProfile /> : <UserLogin />}
             />{" "}
+            <Route path="/trade" element={<TradeRequest />} />
+            <Route path="/items" element={<ItemDetails />} />
             {/* Protect profile route */}
             <Route path="/trade/:itemId" element={<TradeRequest />} />
             <Route path="*" element={<NotFound />} />{" "}

@@ -5,6 +5,7 @@
   "dependencies": {
     "@firebase/firestore": "^4.7.6",
     "@google-cloud/storage": "^7.15.0",
+    "axios": "^1.7.9",
     "bootstrap-icons": "^1.11.3",
     "cra-template": "1.2.0",
     "firebase": "^11.2.0",

@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { Container, Row, Col, Card, Image, Alert } from "react-bootstrap";
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Image,
+  Alert,
+  Nav,
+  Navbar,
+} from "react-bootstrap";
 import { db, functions } from "../services/firebase";
 import { httpsCallable } from "firebase/functions";
+import { productCategories } from "../images/productCategories";
 
 const ItemDetails = () => {
   const { itemId } = useParams();
   const [item, setItem] = useState(null);
   const [error, setError] = useState(null);
-
-  // ... existing imports and state
 
   useEffect(() => {
     const fetchItemDetails = async () => {
@@ -24,12 +32,9 @@ const ItemDetails = () => {
     };
 
     fetchItemDetails();
-  }, []);
-  useEffect(() => {
-    // ItemDetails.js
-    // ... existing imports and state
+  }, [itemId]);
 
-    // ... rest of component
+  useEffect(() => {
     const fetchItem = async () => {
       try {
         const docRef = db.collection("items").doc(itemId);
@@ -46,7 +51,7 @@ const ItemDetails = () => {
     };
 
     fetchItem();
-  }, []);
+  }, [itemId]);
 
   if (error) {
     return (
@@ -76,6 +81,19 @@ const ItemDetails = () => {
     <Container>
       <Row className="justify-content-center mt-5">
         <Col md={6}>
+          <Navbar expand="lg" className="mb-3">
+            <Navbar.Brand>Categories</Navbar.Brand>
+            <Navbar.Toggle aria-controls="basic-navbar-nav" />
+            <Navbar.Collapse id="basic-navbar-nav">
+              <Nav className="mr-auto">
+                {productCategories.map((name, id, image) => (
+                  <Nav.Link key={id} as={image} to={`/category/${name}`}>
+                    {name}
+                  </Nav.Link>
+                ))}
+              </Nav>
+            </Navbar.Collapse>
+          </Navbar>
           <Card>
             <Card.Body>
               <Card.Title>
@@ -95,7 +113,8 @@ const ItemDetails = () => {
                   <strong>Description:</strong> {item.description}
                 </p>
                 <p>
-                  <strong>Category:</strong> {item.category}
+                  <strong>Category:</strong>{" "}
+                  <span className="text-capitalize">{item.category}</span>
                 </p>
                 <p>
                   <strong>Location:</strong> {item.location}

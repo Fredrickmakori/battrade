@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { Alert, Container, Row, Col, Card, Button } from "react-bootstrap";
+import { Container, Row, Col, Card, Button } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "../services/firebase";
@@ -55,7 +55,7 @@ const ItemList = () => {
   }
 
   if (error) {
-    return <Alert variant="danger">{error}</Alert>; // Display error
+    window.Location.href = "/ItemDetails";
   }
 
   return (

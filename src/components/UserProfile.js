@@ -1,7 +1,9 @@
 import React, { useContext, useState, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { auth, db } from "../services/firebase";
+import { auth } from "../services/firebase";
+import { useFetchUserProfile, updateUserProfile } from "../services/api";
+
 import {
   Container,
   Row,
@@ -13,8 +15,6 @@ import {
   Form,
   Alert,
 } from "react-bootstrap";
-import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
 
 const UserProfile = () => {
   const { user } = useContext(AuthContext);
@@ -26,96 +26,48 @@ const UserProfile = () => {
   const [lastName, setLastName] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [idNumber, setIdNumber] = useState("");
-  const [location, setLocation] = useState("");
+  const [userLocation, setUserLocation] = useState("");
   const [email, setEmail] = useState("");
-
+  const { userProfile } = useFetchUserProfile();
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!user) return;
-      try {
-        const getUserProfile = httpsCallable(db, "getUserProfile");
-        const result = await getUserProfile({ uid: user.uid });
-        setUserData(result.data);
-        setFirstName(result.data.firstName);
-        setLastName(result.data.lastName);
-        setMobileNumber(result.data.mobileNumber);
-        setIdNumber(result.data.idNumber);
-        setLocation(result.data.location);
-        setEmail(result.data.email);
-      } catch (error) {
-        console.error("Error fetching user profile:", error);
-        setError("Failed to fetch user profile.");
-      }
-    };
-    fetchUserProfile();
-  }, [user]);
+    if (userProfile) {
+      setFirstName(userProfile.firstName || "");
+      setLastName(userProfile.lastName || "");
+      setMobileNumber(userProfile.mobileNumber || "");
+      setIdNumber(userProfile.idNumber || "");
+      setUserLocation(userProfile.location || "");
+      setEmail(userProfile.email || "");
+    }
+  }, [userProfile]);
+  useEffect(() => {
+    if (user?.uid) {
+      navigate("/login");
+    }
+  }, [user?.uid, navigate]);
 
   const handleSave = async () => {
     setEditing(true);
     try {
-      const updateUserProfileFn = httpsCallable(db, "updateUserProfile");
-      await updateUserProfileFn({
+      await updateUserProfile({
+        uid: user.uid,
         firstName,
         lastName,
         mobileNumber,
         idNumber,
-        location,
+        userLocation,
+
         email,
       });
-      const getUserProfileFn = httpsCallable(db, "getUserProfile");
-      const result = await getUserProfileFn({ uid: user.uid });
-      setUserData(result.data);
+      const fetchedData = await userProfile(user.uid);
+      setUserData(fetchedData);
+      updateUserProfile(userData);
       setEditing(false);
       setError(null);
     } catch (error) {
-      setError("Failed to save changes.");
-      console.error("Error saving user data:", error);
+      console.error("Error updating user profile:", error);
+      setError("Failed to update user profile. Please try again.");
     }
   };
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        if (user) {
-          const userDocRef = doc(db, "user-details", user.uid);
-          const docSnap = await getDoc(userDocRef);
-
-          if (docSnap.exists()) {
-            setUserData(docSnap.data());
-            setFirstName(docSnap.data().firstName);
-            setLastName(docSnap.data().lastName);
-            setMobileNumber(docSnap.data().mobileNumber);
-            setIdNumber(docSnap.data().idNumber);
-            setLocation(docSnap.data().location);
-            setEmail(docSnap.data().email);
-          } else {
-            const initialData = {
-              firstName: user.displayName?.split(" ")[0] || "",
-              lastName: user.displayName?.split(" ")[1] || "",
-              email: user.email || "",
-              phoneNumber: user.phoneNumber || "",
-              photoURL: user.photoURL || null,
-              idNumber: "",
-              location: "",
-              mobileNumber: "",
-            };
-            await setDoc(userDocRef, initialData);
-            setUserData(initialData);
-            setFirstName(initialData.firstName);
-            setLastName(initialData.lastName);
-            setMobileNumber(initialData.mobileNumber);
-            setIdNumber(initialData.idNumber);
-            setLocation(initialData.location);
-            setEmail(initialData.email);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-        setError("Failed to fetch user data.");
-      }
-    };
-    fetchUserData();
-  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -125,7 +77,6 @@ const UserProfile = () => {
       console.error("Logout failed:", error);
     }
   };
-
   return (
     <>
       <Navbar bg="light" expand="lg">
@@ -188,8 +139,8 @@ const UserProfile = () => {
                     <Form.Label>Location</Form.Label>
                     <Form.Control
                       type="text"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
+                      value={userLocation}
+                      onChange={(e) => setUserLocation(e.target.value)}
                       disabled={!editing}
                     />
                   </Form.Group>

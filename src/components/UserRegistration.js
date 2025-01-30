@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import { useRegisterUser } from "../services/api";
 import {
   Card,
   Alert,
@@ -8,13 +8,15 @@ import {
   Form,
   Button,
 } from "react-bootstrap";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { collection, doc, setDoc } from "firebase/firestore";
+import { useState, useContext } from "react";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
 import { auth, db } from "../services/firebase";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { httpsCallable } from "firebase/functions";
-import { functions } from "../services/firebase";
+import { sendAdminRequestEmailApi } from "../services/api";
 import PlacesAutocomplete, {
   geocodeByAddress,
   getLatLng,
@@ -25,6 +27,7 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
 } from "firebase/auth";
+
 const UserRegistration = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -33,29 +36,34 @@ const UserRegistration = () => {
   const [location, setLocation] = useState("");
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
+  const [requestAdmin, setRequestAdmin] = useState(false); // Add state for admin request
   const [error, setError] = useState(null);
   const [locationDetails, setLocationDetails] = useState({});
-
-  const { setUser } = useContext(AuthContext);
+  const [useManualLocation, setUseManualLocation] = useState(false); // State to toggle manual entry
+  const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [manualLocation, setManualLocation] = useState("");
+  const [uid, setUid] = useState("");
+  const { registerUser } = useRegisterUser();
+  const [loading, setLoading] = useState(false);
+  const padPin = (pin) => {
+    if (!pin) {
+      return "";
+    }
+    const pinString = pin.toString();
+    const numericPin = pinString.replace(/[^0-9]/g, ""); // Remove non-numeric characters
+    return numericPin.padStart(8, "0"); // Pad to 8 digits
+  };
 
   const handleGoogleSignIn = async () => {
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
       const user = result.user;
-      const colRef = collection(db, "user-details");
-      await setDoc(doc(colRef, user.uid), {
-        firstName,
-        lastName,
-        mobileNumber,
-        idNumber,
-        location,
-        email,
-      });
+      await registerUser(user); //Call function to save details
       setUser(user);
       navigate("/profile");
     } catch (error) {
-      console.error(error);
+      setError(error.message);
     }
   };
 
@@ -75,15 +83,7 @@ const UserRegistration = () => {
       if (code) {
         await confirmation.confirm(code);
         const user = auth.currentUser;
-        const colRef = collection(db, "user-details");
-        await setDoc(doc(colRef, user.uid), {
-          firstName,
-          lastName,
-          mobileNumber,
-          idNumber,
-          location,
-          email,
-        });
+        await registerUser(user);
         setUser(user);
         navigate("/profile");
       } else {
@@ -94,42 +94,48 @@ const UserRegistration = () => {
     }
   };
 
-  const padPin = (pin) => {
-    return pin.toString().padStart(6, "0");
-  };
+  // customHook.js
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
+    setError("");
+    setLoading(true);
     try {
       const paddedPin = padPin(pin);
-      const userCredential = await createUserWithEmailAndPassword(
+      const password = paddedPin;
+      const createdUser = await createUserWithEmailAndPassword(
         auth,
         email,
-        paddedPin
+        password
       );
-      const createUser = httpsCallable(functions, "createUser");
-      await createUser({
-        firstName,
-        lastName,
-        mobileNumber,
-        idNumber,
-        location,
-        email,
-        locationDetails,
-      });
-      const user = userCredential.user;
-      const colRef = collection(db, "user-details");
-      await setDoc(doc(colRef, user.uid), {
-        firstName,
-        lastName,
-        mobileNumber,
-        idNumber,
-        location,
-        email,
-        locationDetails,
-      });
+      await signInWithEmailAndPassword(auth, email, password);
+      const user = createdUser.user;
       setUser(user);
+      setUid(user.uid);
+      const userDetails = {
+        uid: createdUser.user.uid,
+        firstName: firstName,
+        lastName: lastName,
+        mobileNumber: mobileNumber,
+        idNumber: idNumber,
+        location: useManualLocation ? manualLocation : location, // Use manual or Google locationm
+        email: email.toLowerCase(),
+        locationDetails: location,
+        password: password, // Add password to user object
+      };
+
+      if (user && user.idToken) {
+        const registrationResult = await registerUser(userDetails);
+        console.log("Registration result:", registrationResult);
+      }
+      setError("Failed to register user");
+      //Save user details after creation.
+
+      if (requestAdmin) {
+        // Only send the email if requestAdmin is true
+        await sendAdminRequestEmailApi(user); // Call the API function
+      }
+
       navigate("/profile");
     } catch (error) {
       setError(error.message);
@@ -138,6 +144,8 @@ const UserRegistration = () => {
 
   const handleSelect = async (value) => {
     setLocation(value.label);
+    setUseManualLocation(false);
+    //seManualLocation(false);
     const results = await geocodeByAddress(value.label);
     const latLng = await getLatLng(results[0]);
     setLocationDetails({
@@ -154,9 +162,13 @@ const UserRegistration = () => {
       )?.long_name,
     });
   };
+  const handleManualLocationChange = (e) => {
+    setManualLocation(e.target.value);
+    setLocationDetails({ manualLocation: e.target.value }); //Store manual location
+  };
 
   return (
-    <Container className="bg-dark">
+    <Container className="bg-light">
       <Row className="justify-content-center mt-5">
         <Col md={6}>
           <Card>
@@ -164,6 +176,14 @@ const UserRegistration = () => {
               <h2 className="mb-4">Register</h2>
               {error && <Alert variant="danger">{error}</Alert>}
               <Form onSubmit={handleSubmit}>
+                <Form.Group controlId="formBasicCheckbox">
+                  <Form.Check
+                    type="checkbox"
+                    label="Request Admin Access"
+                    checked={requestAdmin}
+                    onChange={(e) => setRequestAdmin(e.target.checked)}
+                  />
+                </Form.Group>
                 <Form.Group>
                   <Form.Label>First Name</Form.Label>
                   <Form.Control
@@ -246,6 +266,20 @@ const UserRegistration = () => {
                       </div>
                     )}
                   </PlacesAutocomplete>
+                  <Form.Check // Checkbox to enable manual entry
+                    type="checkbox"
+                    label="Enter Location Manually"
+                    checked={useManualLocation}
+                    onChange={(e) => setUseManualLocation(e.target.checked)}
+                  />
+                  {useManualLocation && ( // Conditionally render manual input
+                    <Form.Control
+                      type="text"
+                      value={manualLocation}
+                      onChange={handleManualLocationChange}
+                      placeholder="Enter your location"
+                    />
+                  )}
                 </Form.Group>
                 <Form.Group>
                   <Form.Label>Email</Form.Label>
@@ -271,7 +305,7 @@ const UserRegistration = () => {
               </Form>
               <div className="text-center mt-3">
                 <Button
-                  variant="outline-light"
+                  variant="outline-dark"
                   onClick={handleGoogleSignIn}
                   className="mr-2"
                 >
@@ -281,6 +315,7 @@ const UserRegistration = () => {
                   variant="outline-dark"
                   onClick={() => handlePhoneSignIn(mobileNumber)}
                   className="ml-2"
+                  value
                 >
                   <i className="fas fa-mobile-alt mr-2"></i>Sign in with Phone
                 </Button>

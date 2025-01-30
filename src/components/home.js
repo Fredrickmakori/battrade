@@ -34,11 +34,11 @@ const HomePage = () => {
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="ms-auto">
-              <Nav.Link as={Link} to="/items">
+              <Nav.Link as={Link} to={!user ? "/defaultItems" : "/itemlist"}>
                 Browse Items
               </Nav.Link>
               {user && (
-                <Nav.Link as={Link} to="/upload">
+                <Nav.Link as={Link} to={!user ? "/defaultItems" : "/itemlist"}>
                   Upload Item
                 </Nav.Link>
               )}
@@ -75,7 +75,9 @@ const HomePage = () => {
         <section className="hero text-center py-5 bg-light rounded shadow-sm">
           <Row className="justify-content-center">
             <Col md={8} className="text-center">
-              <h1 className="display-4 mb-3">Welcome to SwapHub!</h1>
+              <h1 className="display-4 mb-3">
+                {user ? "Hi, " + user.displayName : " "} Welcome to SwapHub!
+              </h1>
               <p className="lead mb-4">Where Barter Meets Simplicity</p>
               <p className="mb-5">
                 Looking to exchange your old TV for a fridge? Or swap a guitar
@@ -107,7 +109,7 @@ const HomePage = () => {
                 value.
               </p>
               <Button
-                onDoubleClick={handleGetStarted}
+                onClick={handleGetStarted}
                 variant="primary"
                 size="lg"
                 className="mt-4"
